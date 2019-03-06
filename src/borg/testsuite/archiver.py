@@ -2567,6 +2567,15 @@ class ArchiverTestCase(ArchiverTestCaseBase):
         cmd = 'python3', '-c', 'import os, sys; sys.exit(42 if os.path.exists("%s") else 23)' % lock_path
         self.cmd('with-lock', self.repository_location, *cmd, fork=True, exit_code=42)
 
+    def test_with_reader_lock(self):
+        self.cmd('init', '--encryption=repokey', self.repository_location)
+        roster_path = os.path.join(self.repository_path, 'lock.roster')
+        exclusive_path = os.path.join(self.repository_path, 'lock.exclusive')
+        cmd = 'python3', '-c', ('import os, sys;'
+                           ' sys.exit(34 if os.path.exists("%s") and not os.path.exists("%s") else 59)' %
+                           (roster_path, exclusive_path))
+        self.cmd('with-lock', '--reader', self.repository_location, *cmd, fork=True, exit_code=34)
+
     def test_recreate_list_output(self):
         self.cmd('init', '--encryption=repokey', self.repository_location)
         self.create_regular_file('file1', size=0)

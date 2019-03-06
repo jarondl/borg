@@ -1539,9 +1539,16 @@ class Archiver:
             cache.commit()
         return self.exit_code
 
+    @with_repository(manifest=False, lock=True)
+    def _with_reader_lock(self, args, repository):
+        """run a user specified command with the shared repository lock held"""
+        env = prepare_subprocess_env(system=True)
+        # we exit with the return code we get from the subprocess
+        return subprocess.call([args.command] + args.args, env=env)
+
     @with_repository(manifest=False, exclusive=True)
-    def do_with_lock(self, args, repository):
-        """run a user specified command with the repository lock held"""
+    def _with_exclusive_lock(self, args, repository):
+        """run a user specified command with the exclusive lock held"""
         # for a new server, this will immediately take an exclusive lock.
         # to support old servers, that do not have "exclusive" arg in open()
         # RPC API, we also do it the old way:
@@ -1568,6 +1575,13 @@ class Archiver:
             # any other mechanism relying on existing segment data not changing).
             # see issue #1867.
             repository.commit(compact=False)
+
+    def do_with_lock(self, args):
+        """run a user specified command with the repository lock held"""
+        if args.reader:
+            return self._with_reader_lock(args)
+        else:
+            return self._with_exclusive_lock(args)
 
     @with_repository(manifest=False, exclusive=True)
     def do_compact(self, args, repository):
@@ -3824,6 +3838,8 @@ class Archiver:
         subparser.add_argument('location', metavar='REPOSITORY',
                                type=location_validator(archive=False),
                                help='repository to lock')
+        subparser.add_argument('--reader', dest='reader', action='store_true',
+                help='acquire non-exclusive (shared) reader lock')
         subparser.add_argument('command', metavar='COMMAND',
                                help='command to run')
         subparser.add_argument('args', metavar='ARGS', nargs=argparse.REMAINDER,
